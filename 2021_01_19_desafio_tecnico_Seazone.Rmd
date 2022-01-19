@@ -1,0 +1,139 @@
+---
+title: "desafio_sazone"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(tidytuesdayR)
+library(here)
+library(ggthemes)
+
+
+setwd(here())
+
+```
+
+## R Markdown
+
+```{r}
+
+desafio_priceav <- read.csv("desafio_priceav.csv")
+desafio_details <- read.csv("desafio_details.csv")
+
+
+```
+
+## Olhar a bases de forma geral. 
+
+```{r}
+desafio_priceav %>% glimpse()
+```
+
+
+```{r}
+desafio_details %>% glimpse()
+
+```
+
+Nesse df, algumas colunas possuem caracteries especiais, para lidar com isso, usaremos a função abaixo.
+
+```{r}
+desafio_details_nomes_pt <- desafio_details %>% 
+  mutate(ad_name = iconv( ad_name ,from = "UTF-8", to="LATIN1"),
+         suburb = iconv( suburb ,from = "UTF-8", to="LATIN1")) %>% 
+  select(-X)
+
+```
+
+Foi removida a coluna X, por dois motivos.
+Já temos uma coluna de index nativa na nossa base de dados R.
+Caso o desafio fosse realizado no Jupter, faria sentido a utilização dessa coluna como index, pois a contagem em Python começa em 0.
+
+```{r}
+desafio_priceav_clean <- desafio_priceav %>% 
+  select(-c(1,2))
+```
+
+O mesmo foi feito nesse df em relação a coluna X, com um adicional foi removida a coluna "Unnamed..0", pois não houve nenhuma explicação na documentação sobre essa variável.
+
+## 1. Ordene os bairros em ordem crescente de número de listings
+
+Para fazer tal ordenamento será feito um left_join entre a base desafio_priceave a base desafio_details.
+
+```{r}
+deafio_completo <- desafio_priceav_clean %>% 
+  left_join(desafio_details_nomes_pt, by = c("airbnb_listing_id"))
+
+```
+
+
+```{r}
+numero_listing <- deafio_completo %>% 
+  group_by(suburb) %>% 
+  distinct(airbnb_listing_id) %>% 
+  count(name = "quantidade_listing") %>% 
+  ungroup() %>% 
+  arrange(quantidade_listing)
+
+```
+
+Plot quantidade de Linting de Listing
+```{r}
+numero_listing %>% 
+  mutate(suburb = fct_reorder(suburb, quantidade_listing)) %>% 
+  ggplot(aes(suburb, quantidade_listing, fill = suburb))+
+  geom_col()+
+  labs(title = "Quantidade de Listing",
+       subtitle = "Quanto de listing possue cada bairro?",
+       x = "Bairro",
+       y = "Quantidade")+
+    theme_fivethirtyeight()+
+  scale_fill_discrete(guide="none")
+
+```
+
+O bairro ingleses possui o maio rúmero de listing, seguido por Canasvieiras.
+O bairro com a menor quantidade de listings é o Centro.
+
+## 2. Ordene os bairros em ordem crescente de faturamento médio dos listings
+
+```{r}
+media_faturamento <- deafio_completo %>% 
+  filter(occupied == "0") %>% 
+  group_by(suburb) %>%
+  summarise(media_faturamento = mean(price_string))%>% 
+  arrange(media_faturamento)
+```
+
+```{r}
+media_faturamento %>% 
+  mutate(suburb = fct_reorder(suburb, media_faturamento)) %>% 
+  ggplot(aes(suburb, media_faturamento, fill = suburb))+
+  geom_col()+
+  labs(title = "Média de Faturamento por bairro",
+       subtitle = "Qual a média do faturamento de listings alugados em cada bairro?",
+       x = "Bairro",
+       y = "Preço Médio")+
+  theme_fivethirtyeight()+
+  scale_fill_discrete(guide="none")+
+scale_y_continuous(labels = function(x) paste0("R$", x))
+
+```
+
+
+O centro possui o valor médio menor, seguido por Lagoa da Conceição. Jurerê possuí a média de preço maior.
+
+
+## 3. Existem correlações entre as características de um anúncio e seu faturamento?
+### a. Quais? Explique
+
+
+## 4. Qual a antecedência média das reservas?
+### a. Esse número é maior ou menor para finais de semana?
+
