@@ -1,20 +1,20 @@
 ---
 title: "desafio_sazone"
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
-
-```{r}
+```{r , include=FALSE}
 library(tidyverse)
-library(tidytuesdayR)
 library(here)
 library(ggthemes)
-
-
+library(tidytext)
+library(scales)
+library(chron)
+library(lubridate)
+library(tinytex)
 setwd(here())
 
 ```
@@ -83,10 +83,18 @@ numero_listing <- deafio_completo %>%
 
 ```
 
-Plot quantidade de Linting de Listing
+Plot quantidade de Listing 
 ```{r}
-numero_listing %>% 
-  mutate(suburb = fct_reorder(suburb, quantidade_listing)) %>% 
+
+quantidade_listing <- numero_listing %>% 
+  mutate(suburb = fct_reorder(suburb, quantidade_listing))
+
+
+```
+
+
+```{r pressure, echo=FALSE}
+quantidade_listing %>% 
   ggplot(aes(suburb, quantidade_listing, fill = suburb))+
   geom_col()+
   labs(title = "Quantidade de Listing",
@@ -95,6 +103,7 @@ numero_listing %>%
        y = "Quantidade")+
     theme_fivethirtyeight()+
   scale_fill_discrete(guide="none")
+
 
 ```
 
@@ -134,6 +143,137 @@ O centro possui o valor médio menor, seguido por Lagoa da Conceição. Jurerê 
 ### a. Quais? Explique
 
 
+```{r}
+
+faturamento_medio <- deafio_completo %>% 
+  filter(occupied == "0") %>% 
+  group_by(airbnb_listing_id) %>%
+  mutate(media_faturamento = round(mean(price_string),2)) %>% 
+  ungroup() %>% 
+  select(airbnb_listing_id, number_of_bedrooms:media_faturamento) %>% 
+  distinct() %>% 
+  replace(is.na(.), 0)
+
+```
+
+```{r}
+faturamento_medio %>% 
+  summary()
+```
+
+
+#### Gráfico Faturamento x Número de Quartos
+
+```{r}
+faturamento_medio %>% 
+  filter(media_faturamento < 1500) %>%
+  # mutate(number_of_bedrooms = as.character(number_of_bedrooms)) %>% 
+  ggplot(aes(number_of_bedrooms,media_faturamento, fill =as.character(number_of_bedrooms), group =number_of_bedrooms ))+
+  geom_boxplot()
+```
+
+#### Gráfico Faturamento x Número de Banheiros
+
+```{r}
+faturamento_medio %>% 
+  filter(media_faturamento < 1500) %>%
+  mutate(number_of_bathrooms = as.character(number_of_bathrooms)) %>% 
+  ggplot(aes(number_of_bathrooms,media_faturamento, fill = number_of_bathrooms, group = number_of_bathrooms))+
+  geom_boxplot()
+
+```
+
+
+#### Gráfico Faturamento x Estrelas de classificação
+
+```{r}
+faturamento_medio %>% 
+  filter(media_faturamento < 1500) %>%
+  # mutate(number_of_bedrooms = as.character(number_of_bedrooms)) %>% 
+  ggplot(aes(star_rating,media_faturamento, fill =as.character(star_rating), group =star_rating ))+
+  geom_boxplot()
+```
+
+#### Gráfico Faturamento x Se é SuperHost
+
+```{r}
+faturamento_medio %>% 
+  filter(media_faturamento < 1500) %>%
+  # mutate(number_of_bedrooms = as.character(number_of_bedrooms)) %>% 
+  ggplot(aes(is_superhost,media_faturamento, fill =as.character(is_superhost), group =is_superhost ))+
+  geom_boxplot()
+```
+
+
+#### Gráfico Faturamento x Quantidade de Review
+
+```{r}
+faturamento_medio %>% 
+  filter(media_faturamento < 1500) %>%
+  mutate(number_of_reviews = case_when(number_of_reviews > 11.13 ~ "acima_media",
+                                       TRUE ~ "abaixo_da_media")) %>% 
+  # mutate(number_of_bedrooms = as.character(number_of_bedrooms)) %>% 
+  ggplot(aes(number_of_reviews, media_faturamento, fill =number_of_reviews, group =number_of_reviews ))+
+  geom_boxplot()
+```
+
+De acordo com os gráficos acima é possível afirmar que existe uma relação entre o número de quartos e o números de banheiros e o faturamento médio de cada um dos imóveis. O mesmo não pode ser afirmado para as outras carcteristicas do anúncio, como Quantidade de comentários, se é ou não superhosting, número de estrelas dados por outras pessoas. A seguir será feita a relação da rorelação dessas duas variáveis com o preço médio de faturamento.
+
+
+```{r}
+cor(faturamento_medio$media_faturamento, faturamento_medio$number_of_bedrooms)
+```
+Existe uma correlação postiva entre o número de quartos e o faturamento médio.
+
+```{r}
+cor(faturamento_medio$media_faturamento, faturamento_medio$number_of_bathrooms)
+
+
+```
+Existe também uma correlação positiva entre o número de banheiros e o faturamento médio.
+
+
 ## 4. Qual a antecedência média das reservas?
 ### a. Esse número é maior ou menor para finais de semana?
 
+```{r}
+desafio_completo_fds <- deafio_completo %>% 
+  filter(booked_on != "blank") %>%
+  mutate(final_semana = is.weekend(date),
+         antecedencia = difftime(date, booked_on, units = "days"))
+```
+
+
+```{r}
+media_antecedencia <- desafio_completo_fds %>% 
+  summarise(media_antecendencia = mean(antecedencia)) 
+
+media_antecedencia
+```
+
+```{r}
+media_antecedencia_final_de_semana <- desafio_completo_fds %>% 
+  group_by(final_semana) %>% 
+  summarise(media_antecendencia = mean(antecedencia))
+
+media_antecedencia_final_de_semana %>% view()
+```
+
+A diferença entre o tempo médio de reserva geral, dias de semana e final de semana parece não existir(estatisticamente falando). Para termos certeza é necessário calcular o desvio padrão e comparar os valores. O t-test será feito.
+
+
+```{r}
+antecedencia_wide <- desafio_completo_fds %>% 
+  select(antecedencia, final_semana) %>% 
+  mutate(linha = seq(1:length(antecedencia))) %>% 
+  pivot_wider(names_from = final_semana, values_from = antecedencia) %>% 
+  # replace(is.na(.), 0) %>% 
+  rename("final_de_semana" =  "TRUE",
+         "dia_de_semana" = "FALSE")
+
+```
+
+```{r}
+t.test(antecedencia_wide$dia_de_semana, antecedencia_wide$final_de_semana)
+```
+Com esse p-value concluimos que não existe diferença estatística entre a antecedência de reserva entre dias de seamana e final de semana.
